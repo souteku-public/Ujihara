@@ -1,1 +1,11 @@
+# SRT Listener Analyzer — Python 依存関係
+
+# Web アプリ版 (app.py)
+flask>=3.0.0
+
+# デスクトップ GUI 版 (srt_analyzer.py)
 PySide6>=6.4.0
+
+# スタンドアロン .exe ビルド (オプション)
+# pip install pyinstaller
+# pyinstaller --onefile --add-data "templates;templates" --name srt_analyzer_web app.py

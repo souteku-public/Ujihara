@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRT Listener Analyzer</title>
+<style>
+/* ===== Reset & Variables ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:            #f0f2f5;
+  --card:          #ffffff;
+  --border:        #d0d7de;
+  --border-light:  #e8ecf0;
+  --primary:       #1565C0;
+  --primary-h:     #0D47A1;
+  --primary-dim:   #90CAF9;
+  --danger:        #C62828;
+  --danger-h:      #B71C1C;
+  --success-text:  #1b5e20;
+  --error-text:    #b71c1c;
+  --text:          #1a1a2e;
+  --muted:         #6b7280;
+  --video-bg:      #dce8ff;
+  --audio-bg:      #d4edda;
+  --shadow:        0 2px 8px rgba(0,0,0,0.08);
+  --radius:        8px;
+}
+
+body {
+  font-family: "Noto Sans JP", "Yu Gothic UI", "Meiryo UI", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Header ===== */
+header {
+  background: linear-gradient(135deg, #1565C0 0%, #1976D2 100%);
+  color: white;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  flex-shrink: 0;
+}
+
+.header-icon {
+  width: 38px; height: 38px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+
+header h1  { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+header .sub { font-size: 11px; opacity: 0.82; margin-top: 1px; }
+
+/* ===== Main ===== */
+.main {
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 14px 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ===== Card ===== */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 18px;
+}
+
+.card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* ===== Form grid ===== */
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  align-items: flex-end;
+}
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+
+label.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+input[type=text],
+input[type=password],
+input[type=number] {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus {
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(21,101,192,0.12);
+}
+
+.hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ===== Toggle ===== */
+.toggle-wrap {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+  padding: 5px 0;
+}
+.toggle-wrap input { display: none; }
+.pill {
+  width: 38px; height: 21px;
+  background: #ccc; border-radius: 11px;
+  position: relative; transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-wrap input:checked + .pill { background: var(--primary); }
+.pill::after {
+  content: '';
+  position: absolute;
+  width: 15px; height: 15px;
+  background: white; border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-wrap input:checked + .pill::after { left: 20px; }
+.toggle-label { font-size: 13px; font-weight: 600; }
+
+/* ===== Divider ===== */
+.vdiv {
+  width: 1px; background: var(--border);
+  align-self: stretch; margin: 0 2px; flex-shrink: 0;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  border: none; border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 13px; font-family: inherit; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn-primary {
+  background: var(--primary); color: white;
+  padding: 10px 26px; font-size: 14px;
+}
+.btn-primary:hover:not(:disabled) { background: var(--primary-h); }
+.btn-primary:disabled { background: var(--primary-dim); cursor: not-allowed; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover:not(:disabled) { background: var(--danger-h); }
+.btn-danger:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn-ghost {
+  background: #f0f2f5; color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 5px 12px; font-size: 12px;
+}
+.btn-ghost:hover { background: #e8ecf0; color: var(--text); }
+
+.btn-col {
+  display: flex; flex-direction: column; gap: 8px;
+  justify-content: center; margin-left: auto;
+}
+
+/* ===== Progress bar ===== */
+.progress-wrap {
+  position: relative; height: 24px;
+  background: #e3f2fd; border-radius: 12px;
+  overflow: hidden; border: 1px solid #bbdefb;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1565C0 0%, #42a5f5 100%);
+  border-radius: 12px;
+  transition: width 0.45s ease;
+  width: 0%;
+}
+.progress-label {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #1a1a1a;
+  pointer-events: none;
+}
+
+/* ===== Warning banner ===== */
+.warn-banner {
+  background: #fff8e1; border: 1px solid #ffc107;
+  border-radius: 6px; padding: 10px 16px;
+  font-size: 13px; color: #6d4c00;
+  display: none;
+}
+.warn-banner.show { display: flex; gap: 10px; align-items: flex-start; }
+.warn-banner a { color: var(--primary); }
+
+/* ===== Tabs ===== */
+.tab-bar {
+  display: flex; gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 12px;
+}
+.tab-btn {
+  border: none; background: none;
+  padding: 8px 18px;
+  font-size: 13px; font-family: inherit; font-weight: 600;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover { color: var(--primary); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ===== Stream table ===== */
+.table-wrap {
+  overflow: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  max-height: 380px;
+}
+
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12.5px; min-width: 900px;
+}
+thead th {
+  background: #f5f7fa;
+  border-bottom: 2px solid var(--border);
+  padding: 7px 10px;
+  text-align: center;
+  font-size: 11px; font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  position: sticky; top: 0; z-index: 2;
+}
+tbody td {
+  padding: 6px 9px; text-align: center;
+  border-bottom: 1px solid #f0f2f5;
+  white-space: nowrap;
+}
+tr.video-row td { background: var(--video-bg); }
+tr.audio-row td { background: var(--audio-bg); }
+tbody tr:hover td { filter: brightness(0.96); }
+
+.empty-msg {
+  text-align: center; padding: 40px 20px;
+  color: var(--muted); font-size: 13px;
+}
+.empty-msg .ico { font-size: 36px; margin-bottom: 8px; }
+
+/* ===== Format table ===== */
+#formatTable thead th:first-child { width: 200px; text-align: left; }
+#formatTable td { text-align: left; padding: 6px 12px; }
+#formatTable td:first-child { font-weight: 600; color: var(--muted); font-size: 12px; }
+
+/* ===== Raw JSON ===== */
+.raw-box {
+  background: #1e1e2e; color: #cdd6f4;
+  font-family: "Consolas", "Fira Code", "Source Code Pro", monospace;
+  font-size: 12px; line-height: 1.7;
+  padding: 14px; border-radius: 6px;
+  height: 380px; overflow: auto;
+  white-space: pre; border: 1px solid #313244;
+}
+
+/* ===== Log box ===== */
+.log-box {
+  background: #1e1e1e; color: #d4d4d4;
+  font-family: "Consolas", "Fira Code", monospace;
+  font-size: 12px; line-height: 1.65;
+  padding: 12px; border-radius: 6px;
+  height: 340px; overflow-y: auto;
+}
+.log-success { color: #89d185; }
+.log-fail    { color: #ce9178; }
+.log-error   { color: #f48771; font-weight: bold; }
+.log-info    { color: #9cdcfe; }
+
+/* ===== Toolbar (above tabs) ===== */
+.tab-toolbar {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  flex-wrap: wrap; gap: 6px;
+}
+
+/* ===== Status bar ===== */
+.status-bar {
+  background: #f5f7fa; border-top: 1px solid var(--border);
+  padding: 5px 16px;
+  font-size: 11.5px; color: var(--muted);
+  flex-shrink: 0;
+}
+.status-bar.ok   { color: var(--success-text); }
+.status-bar.err  { color: var(--error-text); }
+
+/* ===== Legend ===== */
+.legend {
+  display: flex; gap: 14px; align-items: center;
+  font-size: 11px; color: var(--muted);
+}
+.legend-dot {
+  width: 12px; height: 12px; border-radius: 3px; display: inline-block;
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<header>
+  <div class="header-icon">📡</div>
+  <div>
+    <h1>SRT Listener Analyzer</h1>
+    <div class="sub">ffprobe バックエンドによる SRT ストリームコーデック解析ツール</div>
+  </div>
+</header>
+
+<!-- ===== Main ===== -->
+<div class="main">
+
+  <!-- ffprobe warning -->
+  <div class="warn-banner" id="ffprobeWarn">
+    <span style="font-size:18px;flex-shrink:0">⚠️</span>
+    <span>
+      <strong>ffprobe が見つかりません。</strong>
+      ffmpeg をインストールして PATH に追加してください。
+      (<a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener">ffmpeg ダウンロード</a>)
+    </span>
+  </div>
+
+  <!-- 接続設定 -->
+  <div class="card">
+    <div class="card-title">接続設定</div>
+    <div class="form-row">
+
+      <!-- IP / Port / Passphrase -->
+      <div class="field">
+        <label class="field-label">IP アドレス</label>
+        <input type="text" id="ipInput" value="127.0.0.1"
+               placeholder="例: 192.168.1.100" style="width:200px">
+      </div>
+      <div class="field">
+        <label class="field-label">ポート</label>
+        <input type="number" id="portInput" value="9998" min="1" max="65535" style="width:90px">
+      </div>
+      <div class="field">
+        <label class="field-label">パスフレーズ</label>
+        <input type="password" id="passphraseInput"
+               placeholder="（オプション）" style="width:195px">
+      </div>
+
+      <div class="vdiv"></div>
+
+      <!-- Latency -->
+      <div class="field">
+        <label class="field-label">Latency モード</label>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="autoScanCheck" checked>
+          <span class="pill"></span>
+          <span class="toggle-label" id="modeLabel">自動スキャン</span>
+        </label>
+        <div class="hint" id="scanHint">120 → 200 → 500 → 1000 → 2000 → 3000 ms</div>
+      </div>
+      <div class="field" id="latField" style="display:none">
+        <label class="field-label">固定 Latency</label>
+        <input type="number" id="latencyInput" value="200" min="20" max="60000"
+               style="width:110px" placeholder="ms">
+        <div class="hint">ミリ秒</div>
+      </div>
+      <div class="field">
+        <label class="field-label">タイムアウト</label>
+        <input type="number" id="timeoutInput" value="8" min="2" max="60" style="width:80px">
+        <div class="hint">秒 / 試行</div>
+      </div>
+
+      <div class="vdiv"></div>
+
+      <!-- Buttons -->
+      <div class="btn-col">
+        <button class="btn btn-primary" id="connectBtn" onclick="startAnalyze()">
+          ▶ 接続 / 解析
+        </button>
+        <button class="btn btn-danger" id="cancelBtn" onclick="cancelAnalyze()" disabled>
+          ■ キャンセル
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-fill" id="progressFill"></div>
+    <div class="progress-label" id="progressLabel">待機中</div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" style="flex:1">
+    <div class="tab-toolbar">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="streams" onclick="switchTab(this)">ストリーム情報</button>
+        <button class="tab-btn" data-tab="format"  onclick="switchTab(this)">フォーマット情報</button>
+        <button class="tab-btn" data-tab="raw"     onclick="switchTab(this)">Raw JSON</button>
+        <button class="tab-btn" data-tab="log"     onclick="switchTab(this)">ログ</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost" id="copyUrlBtn" onclick="copyUrl()" style="display:none">
+          📋 URL コピー
+        </button>
+        <button class="btn btn-ghost" id="exportBtn" onclick="exportJson()" style="display:none">
+          ⬇ JSON 保存
+        </button>
+        <div class="legend">
+          <span><span class="legend-dot" style="background:var(--video-bg);border:1px solid #a0b8e8"></span> 映像</span>
+          <span><span class="legend-dot" style="background:var(--audio-bg);border:1px solid #8bc98b"></span> 音声</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ストリーム情報 -->
+    <div class="tab-panel active" id="tab-streams">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr id="streamHead">
+              <th>Index</th><th>Type</th><th>Codec</th><th>Long Name</th>
+              <th>Profile</th><th>Level</th>
+              <th>Resolution</th><th>Frame Rate</th><th>Pixel Fmt</th>
+              <th>Color Space</th><th>Color Transfer</th><th>Color Prim.</th>
+              <th>Sample Rate</th><th>Channels</th><th>Ch. Layout</th><th>Sample Fmt</th>
+              <th>Bit Rate</th><th>Duration</th><th>Language</th>
+            </tr>
+          </thead>
+          <tbody id="streamBody">
+            <tr><td colspan="19">
+              <div class="empty-msg"><div class="ico">📡</div>接続してストリーム情報を取得してください</div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- フォーマット情報 -->
+    <div class="tab-panel" id="tab-format">
+      <div class="table-wrap" style="max-height:380px">
+        <table id="formatTable">
+          <thead><tr><th>項目</th><th>値</th></tr></thead>
+          <tbody id="formatBody">
+            <tr><td colspan="2">
+              <div class="empty-msg"><div class="ico">📋</div>フォーマット情報なし</div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Raw JSON -->
+    <div class="tab-panel" id="tab-raw">
+      <pre class="raw-box" id="rawBox">// 解析結果がここに表示されます</pre>
+    </div>
+
+    <!-- ログ -->
+    <div class="tab-panel" id="tab-log">
+      <div class="log-box" id="logBox">
+        <span class="log-info">// 待機中… 接続設定を入力して「接続 / 解析」を押してください</span>
+      </div>
+    </div>
+
+  </div><!-- /card results -->
+</div><!-- /main -->
+
+<!-- Status bar -->
+<div class="status-bar" id="statusBar">
+  準備完了 — IP・ポートを入力して「接続 / 解析」を押してください
+</div>
+
+<!-- ===== JavaScript ===== -->
+<script>
+"use strict";
+
+let _evtSrc = null;
+let _cancelled = false;
+let _lastResult = null;
+let _lastUrl = "";
+
+/* ── ffprobe チェック ── */
+(async () => {
+  try {
+    const r = await fetch("/api/check_ffprobe");
+    const d = await r.json();
+    if (!d.available) {
+      document.getElementById("ffprobeWarn").classList.add("show");
+      log("⚠ ffprobe が見つかりません。ffmpeg をインストールしてください。", "error");
+    } else {
+      log("✔ " + d.version, "info");
+    }
+  } catch {}
+})();
+
+/* ── Toggle auto-scan ── */
+document.getElementById("autoScanCheck").addEventListener("change", function () {
+  const manual = !this.checked;
+  document.getElementById("latField").style.display = manual ? "" : "none";
+  document.getElementById("scanHint").style.display = manual ? "none" : "";
+  document.getElementById("modeLabel").textContent = this.checked ? "自動スキャン" : "固定値";
+});
+
+/* ── Tab switching ── */
+function switchTab(btn) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+}
+
+/* ── Progress ── */
+function setProgress(pct, label) {
+  document.getElementById("progressFill").style.width = Math.max(0, Math.min(100, pct)) + "%";
+  document.getElementById("progressLabel").textContent = label;
+}
+
+/* ── Status bar ── */
+function setStatus(msg, cls) {
+  const el = document.getElementById("statusBar");
+  el.textContent = msg;
+  el.className = "status-bar" + (cls ? " " + cls : "");
+}
+
+/* ── Log ── */
+function log(msg, cls) {
+  const box = document.getElementById("logBox");
+  const line = document.createElement("div");
+  if (cls) line.className = "log-" + cls;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  setStatus(msg);
+}
+
+/* ── Format helpers ── */
+function fmtBR(br) {
+  const n = parseInt(br, 10);
+  if (isNaN(n)) return br || "−";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + " Mbps";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + " kbps";
+  return n + " bps";
+}
+
+function fmtFPS(s) {
+  if (!s || s === "0/0") return "−";
+  const [n, d] = s.split("/").map(Number);
+  if (!d) return "−";
+  const fps = n / d;
+  return Math.abs(fps - Math.round(fps)) < 0.01 ? String(Math.round(fps)) : fps.toFixed(3);
+}
+
+function fmtDur(d) {
+  if (!d) return "−";
+  const s = parseFloat(d);
+  if (isNaN(s)) return d;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = (s % 60).toFixed(2).padStart(5, "0");
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${sec}`;
+}
+
+function cell(v) {
+  return (v === null || v === undefined || v === "" || v === -99) ? "−" : String(v);
+}
+
+/* ── Render streams ── */
+function renderStreams(streams) {
+  const tbody = document.getElementById("streamBody");
+  if (!streams || streams.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="19"><div class="empty-msg"><div class="ico">⚠️</div>ストリームが見つかりませんでした</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = "";
+  for (const s of streams) {
+    const tr = document.createElement("tr");
+    const t = s.codec_type || "unknown";
+    if (t === "video") tr.className = "video-row";
+    else if (t === "audio") tr.className = "audio-row";
+
+    let res = "−";
+    if (s.width && s.height) {
+      res = `${s.width}×${s.height}`;
+      if (s.display_aspect_ratio && s.display_aspect_ratio !== "0:0")
+        res += ` (${s.display_aspect_ratio})`;
+    }
+
+    let fps = fmtFPS(s.r_frame_rate);
+    if (fps === "−") fps = fmtFPS(s.avg_frame_rate);
+
+    let sr = "−";
+    if (s.sample_rate) {
+      const hz = parseInt(s.sample_rate, 10);
+      sr = isNaN(hz) ? s.sample_rate : `${hz.toLocaleString()} Hz`;
+    }
+
+    const vals = [
+      cell(s.index),
+      t.toUpperCase(),
+      cell(s.codec_name),
+      cell(s.codec_long_name),
+      cell(s.profile),
+      cell(s.level),
+      res, fps,
+      cell(s.pix_fmt),
+      cell(s.color_space),
+      cell(s.color_transfer),
+      cell(s.color_primaries),
+      sr,
+      cell(s.channels),
+      cell(s.channel_layout),
+      cell(s.sample_fmt),
+      s.bit_rate ? fmtBR(s.bit_rate) : "−",
+      fmtDur(s.duration),
+      (s.tags && (s.tags.language || s.tags.LANGUAGE)) || "−",
+    ];
+
+    for (const v of vals) {
+      const td = document.createElement("td");
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
+/* ── Render format ── */
+function renderFormat(fmt) {
+  const tbody = document.getElementById("formatBody");
+  if (!fmt || Object.keys(fmt).length === 0) {
+    tbody.innerHTML = '<tr><td colspan="2"><div class="empty-msg">フォーマット情報なし</div></td></tr>';
+    return;
+  }
+  const rows = [
+    ["フォーマット名",   cell(fmt.format_name)],
+    ["フォーマット詳細", cell(fmt.format_long_name)],
+    ["開始時刻 (s)",     cell(fmt.start_time)],
+    ["継続時間 (s)",     cell(fmt.duration)],
+    ["サイズ",           fmt.size ? `${parseInt(fmt.size,10).toLocaleString()} bytes` : "−"],
+    ["ビットレート",     fmt.bit_rate ? fmtBR(fmt.bit_rate) : "−"],
+    ["ストリーム数",     cell(fmt.nb_streams)],
+    ["プログラム数",     cell(fmt.nb_programs)],
+  ];
+  const tags = fmt.tags || {};
+  for (const [k, v] of Object.entries(tags)) rows.push([`[タグ] ${k}`, cell(v)]);
+
+  tbody.innerHTML = "";
+  for (const [label, val] of rows) {
+    const tr = document.createElement("tr");
+    ["td", "td"].forEach((tag, i) => {
+      const el = document.createElement(tag);
+      el.textContent = i === 0 ? label : val;
+      tr.appendChild(el);
+    });
+    tbody.appendChild(tr);
+  }
+}
+
+/* ── Start analysis ── */
+function startAnalyze() {
+  const ip = document.getElementById("ipInput").value.trim();
+  if (!ip) { alert("IP アドレスを入力してください"); return; }
+
+  const port        = parseInt(document.getElementById("portInput").value, 10) || 9998;
+  const passphrase  = document.getElementById("passphraseInput").value;
+  const autoScan    = document.getElementById("autoScanCheck").checked;
+  const latencyMs   = parseInt(document.getElementById("latencyInput").value, 10) || 200;
+  const timeout     = parseInt(document.getElementById("timeoutInput").value, 10) || 8;
+
+  /* Reset UI */
+  document.getElementById("streamBody").innerHTML =
+    '<tr><td colspan="19"><div class="empty-msg"><div class="ico">⏳</div>解析中…</div></td></tr>';
+  document.getElementById("formatBody").innerHTML =
+    '<tr><td colspan="2"><div class="empty-msg">解析中…</div></td></tr>';
+  document.getElementById("rawBox").textContent = "// 解析中…";
+  document.getElementById("logBox").innerHTML = "";
+  document.getElementById("copyUrlBtn").style.display = "none";
+  document.getElementById("exportBtn").style.display = "none";
+  _lastResult = null; _lastUrl = "";
+
+  setProgress(0, "接続中…");
+  setStatus("SRT ストリームへ接続中…");
+
+  document.getElementById("connectBtn").disabled = true;
+  document.getElementById("cancelBtn").disabled = false;
+  _cancelled = false;
+
+  if (_evtSrc) { _evtSrc.close(); _evtSrc = null; }
+
+  const qs = new URLSearchParams({ ip, port, passphrase, auto_scan: autoScan, latency_ms: latencyMs, timeout });
+  _evtSrc = new EventSource("/api/analyze?" + qs);
+
+  _evtSrc.onmessage = (e) => {
+    if (_cancelled) { _evtSrc.close(); return; }
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.type === "progress") {
+      const pct = Math.round(((msg.current - 1) / msg.total) * 100);
+      setProgress(pct, `Latency ${msg.latency} ms を試行中… (${msg.current}/${msg.total})`);
+      log(msg.msg);
+    } else if (msg.type === "progress_fail") {
+      log(msg.msg, "fail");
+    } else if (msg.type === "result") {
+      onResult(msg.data, msg.msg);
+      _evtSrc.close(); doneUI();
+    } else if (msg.type === "error") {
+      onError(msg.msg);
+      _evtSrc.close(); doneUI();
+    }
+  };
+
+  _evtSrc.onerror = () => {
+    if (!_cancelled) {
+      log("サーバーとの通信でエラーが発生しました", "error");
+      setStatus("通信エラー", "err");
+      setProgress(0, "エラー");
+    }
+    _evtSrc.close(); doneUI();
+  };
+}
+
+function onResult(data, successMsg) {
+  const streams = data.streams || [];
+  const fmt     = data.format  || {};
+  const lat     = data._latency_ms;
+  const url     = data._srt_url || "";
+
+  _lastResult = data;
+  _lastUrl    = url;
+
+  renderStreams(streams);
+  renderFormat(fmt);
+
+  const display = Object.fromEntries(Object.entries(data).filter(([k]) => !k.startsWith("_")));
+  document.getElementById("rawBox").textContent = JSON.stringify(display, null, 2);
+
+  const nV = streams.filter(s => s.codec_type === "video").length;
+  const nA = streams.filter(s => s.codec_type === "audio").length;
+
+  setProgress(100, `解析完了 (Latency: ${lat} ms)`);
+  setStatus(`解析成功 — 映像 ${nV} / 音声 ${nA} ストリーム検出  |  Latency: ${lat} ms  |  ${url}`, "ok");
+  log(successMsg, "success");
+  log("SRT URL: " + url, "info");
+
+  document.getElementById("copyUrlBtn").style.display = "";
+  document.getElementById("exportBtn").style.display  = "";
+
+  /* ストリーム情報タブへ */
+  document.querySelector('[data-tab="streams"]').click();
+}
+
+function onError(msg) {
+  log("[ERROR] " + msg, "error");
+  setProgress(0, "失敗");
+  setStatus("接続失敗 — " + msg.split("\n")[0], "err");
+  alert(msg);
+}
+
+/* ── Cancel ── */
+function cancelAnalyze() {
+  _cancelled = true;
+  if (_evtSrc) { _evtSrc.close(); _evtSrc = null; }
+  log("キャンセルされました", "fail");
+  setStatus("キャンセル");
+  setProgress(0, "キャンセル");
+  doneUI();
+}
+
+/* ── Done ── */
+function doneUI() {
+  document.getElementById("connectBtn").disabled = false;
+  document.getElementById("cancelBtn").disabled  = true;
+}
+
+/* ── Copy SRT URL ── */
+function copyUrl() {
+  if (!_lastUrl) return;
+  navigator.clipboard.writeText(_lastUrl).then(() => {
+    const btn = document.getElementById("copyUrlBtn");
+    btn.textContent = "✔ コピー済み";
+    setTimeout(() => { btn.textContent = "📋 URL コピー"; }, 2000);
+  }).catch(() => {
+    prompt("SRT URL:", _lastUrl);
+  });
+}
+
+/* ── Export JSON ── */
+function exportJson() {
+  if (!_lastResult) return;
+  const display = Object.fromEntries(
+    Object.entries(_lastResult).filter(([k]) => !k.startsWith("_"))
+  );
+  const blob = new Blob([JSON.stringify(display, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "srt_probe_result.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
