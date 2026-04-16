@@ -6,7 +6,9 @@ ffprobe を subprocess で実行し、JSON を返す。
 """
 
 import json
+import os
 import subprocess
+import sys
 import urllib.parse
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +17,19 @@ LATENCY_SCAN_VALUES: List[int] = [120, 200, 500, 1000, 2000, 3000]
 
 # 各接続試行のデフォルトタイムアウト（秒）
 PROBE_TIMEOUT_SEC: int = 8
+
+
+def _ffprobe_path() -> str:
+    """
+    ffprobe の実行パスを返す。
+    PyInstaller でビルドした .exe の場合は同梱の ffprobe.exe を優先する。
+    """
+    if getattr(sys, "frozen", False):
+        # PyInstaller が展開する一時フォルダ内を探す
+        bundled = os.path.join(sys._MEIPASS, "ffprobe.exe")  # type: ignore[attr-defined]
+        if os.path.exists(bundled):
+            return bundled
+    return "ffprobe"  # PATH から探す（通常実行時）
 
 
 def build_srt_url(ip: str, port: int, passphrase: str, latency_ms: int) -> str:
@@ -47,7 +62,7 @@ def probe_stream(
     """
     url = build_srt_url(ip, port, passphrase, latency_ms)
     cmd = [
-        "ffprobe",
+        _ffprobe_path(),
         "-v", "quiet",
         "-print_format", "json",
         "-show_streams",
