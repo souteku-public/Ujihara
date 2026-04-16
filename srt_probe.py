@@ -21,16 +21,25 @@ PROBE_TIMEOUT_SEC: int = 8
 
 def _ffprobe_path() -> str:
     """
-    ffprobe の実行パスを返す。
-    PyInstaller でビルドした .exe の場合は同梱の ffprobe.exe を優先する。
+    ffprobe の実行パスを解決する。優先順位:
+      1. PyInstaller 同梱（sys._MEIPASS 内）
+      2. .exe と同じフォルダ
+      3. システム PATH
     """
+    name = "ffprobe.exe" if sys.platform == "win32" else "ffprobe"
+
     if getattr(sys, "frozen", False):
-        # PyInstaller が展開する一時フォルダ内を探す
-        name = "ffprobe.exe" if sys.platform == "win32" else "ffprobe"
+        # 1. PyInstaller が展開する一時フォルダ内
         bundled = os.path.join(sys._MEIPASS, name)  # type: ignore[attr-defined]
         if os.path.exists(bundled):
             return bundled
-    return "ffprobe"  # PATH から探す（通常実行時）
+
+        # 2. .exe ファイルと同じフォルダ
+        beside = os.path.join(os.path.dirname(sys.executable), name)
+        if os.path.exists(beside):
+            return beside
+
+    return "ffprobe"  # 3. PATH から探す
 
 
 def build_srt_url(ip: str, port: int, passphrase: str, latency_ms: int) -> str:
