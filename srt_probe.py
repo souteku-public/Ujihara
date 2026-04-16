@@ -26,7 +26,8 @@ def _ffprobe_path() -> str:
     """
     if getattr(sys, "frozen", False):
         # PyInstaller が展開する一時フォルダ内を探す
-        bundled = os.path.join(sys._MEIPASS, "ffprobe.exe")  # type: ignore[attr-defined]
+        name = "ffprobe.exe" if sys.platform == "win32" else "ffprobe"
+        bundled = os.path.join(sys._MEIPASS, name)  # type: ignore[attr-defined]
         if os.path.exists(bundled):
             return bundled
     return "ffprobe"  # PATH から探す（通常実行時）

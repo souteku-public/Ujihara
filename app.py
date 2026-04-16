@@ -65,7 +65,7 @@ def check_ffprobe():
     """ffprobe の有無とバージョンを返す。"""
     try:
         result = subprocess.run(
-            ["ffprobe", "-version"],
+            [srt_probe._ffprobe_path(), "-version"],
             capture_output=True,
             text=True,
             timeout=5,
