@@ -1,0 +1,5 @@
+# LiDAR Mount Plate Generator – Python dependencies
+#
+# CadQuery bundles OpenCASCADE (OCP) and cadquery-ocp automatically.
+# No separate OCC / pythonocc-core install is needed.
+cadquery>=2.4.0
