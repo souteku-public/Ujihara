@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# ffprobe / ffmpeg binaries (配布時は Release で添付)
+ffprobe
+ffprobe.exe
+ffmpeg
+ffmpeg.exe
+
+# OS
+.DS_Store
+Thumbs.db
