@@ -286,6 +286,46 @@ tbody tr:hover td { filter: brightness(0.96); }
 #formatTable td { text-align: left; padding: 6px 12px; }
 #formatTable td:first-child { font-weight: 600; color: var(--muted); font-size: 12px; }
 
+/* ===== Bitrate (CBR/VBR) ===== */
+.br-controls {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 12px;
+  background: #f5f7fa; border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.br-ctl-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.br-ctl-unit  { font-size: 12px; color: var(--muted); }
+.br-hint { font-size: 11px; color: var(--muted); margin-left: 4px; }
+
+.br-badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 10px; font-size: 11px; font-weight: 700;
+  color: #fff;
+}
+.br-cbr  { background: #2e7d32; }
+.br-near { background: #f57f17; }
+.br-vbr  { background: #1565C0; }
+.br-unknown { background: #757575; }
+
+.br-note {
+  margin-top: 14px; padding: 12px 16px;
+  background: #f8f9fb; border: 1px solid var(--border-light);
+  border-radius: 6px; font-size: 12px; color: #444; line-height: 1.7;
+}
+.br-note ul { margin: 8px 0 8px 4px; list-style: none; }
+.br-note li { margin: 4px 0; }
+
+/* インラインの推移スパークライン */
+.spark {
+  display: inline-flex; align-items: flex-end; gap: 1px;
+  height: 24px; vertical-align: middle;
+}
+.spark-bar {
+  width: 4px; background: #90a4ae; border-radius: 1px 1px 0 0;
+  min-height: 2px;
+}
+
 /* ===== Raw JSON ===== */
 .raw-box {
   background: #1e1e2e; color: #cdd6f4;
@@ -432,6 +472,7 @@ tbody tr:hover td { filter: brightness(0.96); }
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="streams" onclick="switchTab(this)">ストリーム情報</button>
         <button class="tab-btn" data-tab="format"  onclick="switchTab(this)">フォーマット情報</button>
+        <button class="tab-btn" data-tab="bitrate" onclick="switchTab(this)">ビットレート (CBR/VBR)</button>
         <button class="tab-btn" data-tab="raw"     onclick="switchTab(this)">Raw JSON</button>
         <button class="tab-btn" data-tab="log"     onclick="switchTab(this)">ログ</button>
       </div>
@@ -486,6 +527,55 @@ tbody tr:hover td { filter: brightness(0.96); }
       </div>
     </div>
 
+    <!-- ビットレート (CBR/VBR) -->
+    <div class="tab-panel" id="tab-bitrate">
+      <div class="br-controls">
+        <span class="br-ctl-label">測定時間</span>
+        <input type="number" id="brWindowInput" value="10" min="3" max="60" style="width:70px">
+        <span class="br-ctl-unit">秒</span>
+        <button class="btn btn-primary" id="brRunBtn" onclick="startBitrate()"
+                style="padding:8px 18px;font-size:13px" disabled>
+          📊 ビットレート測定
+        </button>
+        <button class="btn btn-danger" id="brCancelBtn" onclick="cancelBitrate()"
+                style="padding:8px 14px;font-size:12px;display:none">■ 中止</button>
+        <span class="br-hint" id="brHint">※ 先に「接続 / 解析」で接続を確立してください</span>
+      </div>
+
+      <div class="progress-wrap" id="brProgressWrap" style="display:none;margin-bottom:12px">
+        <div class="progress-fill" id="brProgressFill"></div>
+        <div class="progress-label" id="brProgressLabel"></div>
+      </div>
+
+      <div id="brResult" style="display:none">
+        <div class="table-wrap" style="max-height:300px">
+          <table id="brTable">
+            <thead>
+              <tr>
+                <th>Stream</th><th>Type</th><th>判定</th><th>平均</th>
+                <th>最小</th><th>最大</th><th>変動係数 (CV)</th>
+                <th>ピーク/平均</th><th>推移</th><th>信頼度</th>
+              </tr>
+            </thead>
+            <tbody id="brBody"></tbody>
+          </table>
+        </div>
+        <div class="br-note">
+          <strong>判定方法:</strong>
+          一定時間パケットを受信し、1 秒ごとのビットレートの<strong>ばらつき（変動係数 CV = 標準偏差 ÷ 平均）</strong>から統計的に推定します。
+          <ul>
+            <li><span class="br-badge br-cbr">CBR</span> CV &lt; 5%：ビットレートがほぼ一定（固定ビットレート）</li>
+            <li><span class="br-badge br-near">準CBR</span> CV 5〜15%：制約付き VBR / CBR に近い</li>
+            <li><span class="br-badge br-vbr">VBR</span> CV ≥ 15%：シーンに応じて増減（可変ビットレート）</li>
+          </ul>
+          あくまで統計的推定です。測定時間を長くするほど（例: 20〜30 秒）精度が上がります。
+          MPEG-TS の CBR は伝送レベルで NULL パケット詰めされている場合があり、その場合でも映像 ES 自体は VBR のことがあります。
+        </div>
+      </div>
+
+      <div id="brEmpty" class="empty-msg"><div class="ico">📊</div>接続後に「ビットレート測定」を押してください</div>
+    </div>
+
     <!-- Raw JSON -->
     <div class="tab-panel" id="tab-raw">
       <pre class="raw-box" id="rawBox">// 解析結果がここに表示されます</pre>
@@ -514,6 +604,9 @@ let _evtSrc = null;
 let _cancelled = false;
 let _lastResult = null;
 let _lastUrl = "";
+let _lastConn = null;      // 接続成功時のパラメータ {ip, port, passphrase, latency}
+let _brSrc = null;         // ビットレート測定用 EventSource
+let _brCancelled = false;
 
 /* ── ffprobe チェック ── */
 (async () => {
@@ -712,7 +805,15 @@ function startAnalyze() {
   document.getElementById("logBox").innerHTML = "";
   document.getElementById("copyUrlBtn").style.display = "none";
   document.getElementById("exportBtn").style.display = "none";
-  _lastResult = null; _lastUrl = "";
+  _lastResult = null; _lastUrl = ""; _lastConn = null;
+
+  /* ビットレート測定をリセット */
+  cancelBitrate();
+  document.getElementById("brRunBtn").disabled = true;
+  document.getElementById("brHint").textContent = "※ 先に「接続 / 解析」で接続を確立してください";
+  document.getElementById("brResult").style.display = "none";
+  document.getElementById("brEmpty").style.display = "";
+  document.getElementById("brProgressWrap").style.display = "none";
 
   setProgress(0, "接続中…");
   setStatus("SRT ストリームへ接続中…");
@@ -764,6 +865,17 @@ function onResult(data, successMsg) {
 
   _lastResult = data;
   _lastUrl    = url;
+  _lastConn   = {
+    ip:         document.getElementById("ipInput").value.trim(),
+    port:       parseInt(document.getElementById("portInput").value, 10) || 9998,
+    passphrase: document.getElementById("passphraseInput").value,
+    latency:    lat,
+  };
+
+  /* ビットレート測定を有効化 */
+  document.getElementById("brRunBtn").disabled = false;
+  document.getElementById("brHint").textContent =
+    `接続中の Latency ${lat} ms で測定します`;
 
   renderStreams(streams);
   renderFormat(fmt);
@@ -833,6 +945,169 @@ function exportJson() {
   a.download = "srt_probe_result.json";
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+/* ==========================================================================
+ * ビットレート (CBR/VBR) 測定
+ * ======================================================================== */
+
+const _BR_BADGE = {
+  CBR:      "br-cbr",
+  NEAR_CBR: "br-near",
+  VBR:      "br-vbr",
+  UNKNOWN:  "br-unknown",
+};
+
+function startBitrate() {
+  if (!_lastConn) { alert("先に接続を確立してください"); return; }
+
+  const window = Math.max(3, Math.min(60,
+    parseInt(document.getElementById("brWindowInput").value, 10) || 10));
+
+  _brCancelled = false;
+  if (_brSrc) { _brSrc.close(); _brSrc = null; }
+
+  document.getElementById("brRunBtn").disabled = true;
+  document.getElementById("brCancelBtn").style.display = "";
+  document.getElementById("brEmpty").style.display = "none";
+  document.getElementById("brResult").style.display = "none";
+
+  const wrap = document.getElementById("brProgressWrap");
+  wrap.style.display = "";
+  setBrProgress(0, `測定準備中…（最大 ${window} 秒）`);
+  log(`ビットレート測定を開始（最大 ${window} 秒）`, "info");
+
+  const qs = new URLSearchParams({
+    ip: _lastConn.ip,
+    port: _lastConn.port,
+    passphrase: _lastConn.passphrase,
+    latency_ms: _lastConn.latency,
+    window: window,
+  });
+  _brSrc = new EventSource("/api/bitrate?" + qs);
+
+  _brSrc.onmessage = (e) => {
+    if (_brCancelled) { _brSrc.close(); return; }
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.type === "progress") {
+      const pct = msg.target ? Math.round((msg.elapsed / msg.target) * 100) : 0;
+      setBrProgress(pct, `測定中… ${msg.elapsed} / ${msg.target} 秒`);
+    } else if (msg.type === "result") {
+      renderBitrate(msg);
+      _brSrc.close(); brDone();
+    } else if (msg.type === "error") {
+      log("[ビットレート] " + msg.msg, "error");
+      setStatus("ビットレート測定失敗 — " + msg.msg.split("\n")[0], "err");
+      document.getElementById("brProgressWrap").style.display = "none";
+      document.getElementById("brEmpty").style.display = "";
+      document.getElementById("brEmpty").innerHTML =
+        '<div class="ico">⚠️</div>' + msg.msg.split("\n")[0];
+      _brSrc.close(); brDone();
+    }
+  };
+
+  _brSrc.onerror = () => {
+    if (!_brCancelled) {
+      log("ビットレート測定でサーバー通信エラー", "error");
+    }
+    _brSrc.close(); brDone();
+  };
+}
+
+function cancelBitrate() {
+  _brCancelled = true;
+  if (_brSrc) { _brSrc.close(); _brSrc = null; }
+  brDone();
+}
+
+function brDone() {
+  document.getElementById("brRunBtn").disabled = !_lastConn;
+  document.getElementById("brCancelBtn").style.display = "none";
+}
+
+function setBrProgress(pct, label) {
+  document.getElementById("brProgressFill").style.width =
+    Math.max(0, Math.min(100, pct)) + "%";
+  document.getElementById("brProgressLabel").textContent = label;
+}
+
+function sparkline(rates) {
+  if (!rates || rates.length === 0) return "";
+  const max = Math.max(...rates) || 1;
+  const bars = rates.map(r => {
+    const h = Math.max(2, Math.round((r / max) * 24));
+    return `<span class="spark-bar" style="height:${h}px" title="${fmtBR(r)}"></span>`;
+  }).join("");
+  return `<span class="spark">${bars}</span>`;
+}
+
+function renderBitrateRow(s) {
+  const tr = document.createElement("tr");
+  const t = (s.codec_type || "").toLowerCase();
+  if (t === "video") tr.className = "video-row";
+  else if (t === "audio") tr.className = "audio-row";
+
+  const badgeClass = _BR_BADGE[s.mode] || "br-unknown";
+  const idxLabel = (s.stream_index === "all") ? "合計" : s.stream_index;
+  const typeLabel = (s.codec_type === "combined") ? "全体" : (s.codec_type || "-").toUpperCase();
+
+  const cells = [
+    idxLabel,
+    typeLabel,
+    `<span class="br-badge ${badgeClass}">${s.mode_label}</span>`,
+    fmtBR(s.mean_bps),
+    fmtBR(s.min_bps),
+    fmtBR(s.max_bps),
+    s.cv_pct.toFixed(1) + " %",
+    s.peak_avg_ratio.toFixed(2) + "×",
+    sparkline(s.rates_bps),
+    confLabel(s.confidence) + `（${s.usable_bins} 区間）`,
+  ];
+
+  for (const c of cells) {
+    const td = document.createElement("td");
+    td.innerHTML = c;
+    tr.appendChild(td);
+  }
+  return tr;
+}
+
+function confLabel(c) {
+  return { high: "高", medium: "中", low: "低" }[c] || "-";
+}
+
+function renderBitrate(data) {
+  document.getElementById("brProgressWrap").style.display = "none";
+  document.getElementById("brEmpty").style.display = "none";
+  document.getElementById("brResult").style.display = "";
+
+  const body = document.getElementById("brBody");
+  body.innerHTML = "";
+
+  /* ストリームごと */
+  for (const s of (data.streams || [])) {
+    body.appendChild(renderBitrateRow(s));
+  }
+  /* 全体（合算） */
+  if (data.overall) {
+    const tr = renderBitrateRow(data.overall);
+    tr.style.fontWeight = "600";
+    tr.style.borderTop = "2px solid var(--border)";
+    body.appendChild(tr);
+  }
+
+  /* 主要ストリーム（映像優先）の判定をステータスに出す */
+  const main = (data.streams || []).find(s => s.codec_type === "video")
+            || (data.streams || [])[0];
+  if (main) {
+    setStatus(
+      `ビットレート判定: ${main.mode_label}  |  平均 ${fmtBR(main.mean_bps)}  |  CV ${main.cv_pct.toFixed(1)}%  |  ${data.window_sec}秒測定`,
+      "ok"
+    );
+    log(`ビットレート判定: ${main.mode_label} (CV ${main.cv_pct.toFixed(1)}%, 平均 ${fmtBR(main.mean_bps)})`, "success");
+  }
 }
 </script>
 </body>

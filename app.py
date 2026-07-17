@@ -168,6 +168,63 @@ def analyze():
     )
 
 
+@app.route("/api/bitrate")
+def bitrate():
+    """
+    SRT ストリームを一定時間受信し、CBR / VBR を統計的に判定する（SSE）。
+
+    Query params:
+      ip          : SRT Listener の IP アドレス（必須）
+      port        : ポート番号（デフォルト: 9998）
+      passphrase  : パスフレーズ（省略可）
+      latency_ms  : 接続に使用する Latency (ms)（接続成功時の値を渡す）
+      window      : 測定時間（秒）。3〜60、デフォルト 10
+    """
+    ip = request.args.get("ip", "").strip()
+    if not ip:
+        return {"error": "ip is required"}, 400
+
+    try:
+        port = int(request.args.get("port", 9998))
+        latency_ms = int(request.args.get("latency_ms", 200))
+        window = max(3, min(60, int(request.args.get("window", srt_probe.BITRATE_WINDOW_SEC))))
+    except ValueError:
+        return {"error": "invalid numeric parameter"}, 400
+
+    passphrase = request.args.get("passphrase", "")
+
+    def generate() -> Generator[str, None, None]:
+        yield _sse({
+            "type": "progress",
+            "elapsed": 0,
+            "target": window,
+            "msg": f"ビットレート測定を開始（最大 {window} 秒）…",
+        })
+        try:
+            for ev in srt_probe.analyze_bitrate_variability(
+                ip, port, passphrase, latency_ms, window_sec=window
+            ):
+                yield _sse(ev)
+        except FileNotFoundError:
+            yield _sse({
+                "type": "error",
+                "msg": (
+                    "ffprobe が見つかりません。\n"
+                    "ffmpeg をインストールして PATH に追加してください。\n"
+                    "https://ffmpeg.org/download.html"
+                ),
+            })
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 # --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
